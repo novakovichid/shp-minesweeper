@@ -21,6 +21,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   display: flex;
@@ -324,6 +325,96 @@ body {
 
   .board {
     border-radius: 22px;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --cell-size: clamp(26px, 7.4vw, 38px);
+    --cell-gap: clamp(2px, 0.8vw, 3px);
+    --board-padding: clamp(8px, 2.2vw, 12px);
+  }
+
+  body {
+    align-items: stretch;
+    padding: clamp(0.75rem, 4vw, 1.75rem);
+  }
+
+  .app-shell {
+    width: 100%;
+    gap: clamp(0.75rem, 4vw, 1.75rem);
+  }
+
+  .app-header h1 {
+    font-size: clamp(1.75rem, 6vw, 2.4rem);
+  }
+
+  .app-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.75rem, 5vw, 1.5rem);
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .board-section {
+    order: -1;
+    width: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: clamp(0.25rem, 2vw, 0.75rem);
+  }
+
+  .board {
+    width: min(100%, 92vw);
+    max-height: min(92vw, 70vh);
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+  }
+
+  .info-panel {
+    width: 100%;
+    padding: clamp(0.75rem, 4vw, 1rem);
+    gap: clamp(0.5rem, 3vw, 0.75rem);
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .messages {
+    flex: 1 1 100%;
+    min-height: auto;
+    padding: 0.6rem 0.75rem;
+    font-size: 1rem;
+  }
+
+  .status {
+    flex: 1 1 min(320px, 60%);
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    gap: 0.45rem;
+    font-size: 0.95rem;
+    justify-items: stretch;
+  }
+
+  .status-item {
+    padding: 0.5rem 0.65rem;
+    font-size: 0.95rem;
+  }
+
+  .reset-button {
+    flex: 0 1 auto;
+    padding: 0.65rem 1.4rem;
+    font-size: 0.95rem;
+    align-self: center;
+    white-space: nowrap;
   }
 }
 
