@@ -3,35 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SHM Minesweeper</title>
+  <title>Сапёр SHP</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="app-header">
-    <h1>Сапёр SHP</h1>
-    <p class="tagline">Настраиваемый сапёр с параметрами через URL</p>
-  </header>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>Сапёр SHP</h1>
+    </header>
 
-  <main class="app-main">
-    <section class="controls-panel">
-      <div class="parameters" id="parameters"></div>
-      <div class="status">
-        <div class="timer" id="timer" aria-live="polite">⏱️ 00:00</div>
-        <div class="mines" id="mines-remaining">💣 Осталось: 0</div>
-      </div>
-      <button id="reset-button" type="button" class="reset-button">🔄 Начать заново</button>
-      <p class="hint">Левой кнопкой мыши открывайте клетки, правой ставьте 🚩. Параметры игры задаются в URL.</p>
-      <div id="messages" class="messages" role="status" aria-live="polite"></div>
-    </section>
+    <main class="app-main" role="main">
+      <section class="info-panel" aria-live="polite">
+        <div id="messages" class="messages" role="status"></div>
+        <div class="status" aria-label="Показатели партии">
+          <div class="status-item" id="timer">00:00</div>
+          <div class="status-item" id="mines-remaining">Мин: 0</div>
+          <div class="status-item" id="parameters"></div>
+        </div>
+        <button id="reset-button" type="button" class="reset-button">Начать заново</button>
+      </section>
 
-    <section class="board-section">
-      <div id="board" class="board" role="grid" aria-label="Игровое поле сапёра"></div>
-    </section>
-  </main>
-
-  <footer class="app-footer">
-    <p>Скопируйте URL, чтобы поделиться таким же раскладом.</p>
-  </footer>
+      <section class="board-section">
+        <div id="board" class="board" role="grid" aria-label="Игровое поле сапёра"></div>
+      </section>
+    </main>
+  </div>
 
   <script src="script.js"></script>
 </body>

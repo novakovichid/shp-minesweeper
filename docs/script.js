@@ -10,11 +10,16 @@
     mines: { min: 1 },
   };
 
-  const numberEmoji = ['⬜', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
-  const hiddenEmoji = '🟦';
-  const mineEmoji = '💣';
-  const explosionEmoji = '💥';
-  const flagEmoji = '🚩';
+  const HIDDEN_SYMBOL = '';
+  const FLAG_SYMBOL = '\u2691';
+  const MINE_SYMBOL = '\u2739';
+  const EXPLOSION_SYMBOL = '\u2716';
+
+  const BASE_CELL_SIZE = 48;
+  const BASE_GAP = 4;
+  const BASE_PADDING = 14;
+  const MIN_CELL_SIZE = 22;
+  const MARGIN = 48;
 
   const boardEl = document.getElementById('board');
   const parametersEl = document.getElementById('parameters');
@@ -22,6 +27,9 @@
   const minesEl = document.getElementById('mines-remaining');
   const messagesEl = document.getElementById('messages');
   const resetButton = document.getElementById('reset-button');
+  const headerEl = document.querySelector('.app-header');
+  const infoPanelEl = document.querySelector('.info-panel');
+  const appShellEl = document.querySelector('.app-shell');
 
   const { config, warnings: configWarnings } = parseConfigFromUrl();
   let totalCells = config.width * config.height;
@@ -43,16 +51,20 @@
   if (combinedWarnings.length > 0) {
     showMessage(combinedWarnings.join(' '));
   } else {
-    showMessage('Готовы к игре! Кликните на любую клетку, чтобы начать.');
+    showMessage('Готовы к игре! Нажмите на любую клетку, чтобы начать.');
   }
-  parametersEl.innerHTML = paramInfo.text;
-  minesEl.textContent = `💣 Осталось: ${config.mines}`;
+  parametersEl.textContent = paramInfo.text;
+  minesEl.textContent = `Мин: ${config.mines}`;
 
   resetButton.addEventListener('click', () => {
     resetGame();
   });
 
   initializeBoard();
+  resizeBoard();
+  window.addEventListener('resize', () => {
+    resizeBoard();
+  });
 
   function parseConfigFromUrl() {
     const url = new URL(window.location.href);
@@ -114,28 +126,20 @@
   }
 
   function renderParameters(cfg) {
-    const warnings = [];
-    const text = `
-      <strong>Параметры партии</strong><br />
-      Ширина: <strong>${cfg.width}</strong> клеток<br />
-      Высота: <strong>${cfg.height}</strong> клеток<br />
-      Мин: <strong>${cfg.mines}</strong><br />
-      <span class="url-tip">URL: ?width=${cfg.width}&height=${cfg.height}&mines=${cfg.mines}</span>
-    `;
-
-    return { text, warnings };
+    const text = `Поле: ${cfg.width} × ${cfg.height} · Мин: ${cfg.mines}`;
+    return { text, warnings: [] };
   }
 
   function initializeBoard() {
     boardEl.innerHTML = '';
-    boardEl.style.gridTemplateColumns = `repeat(${config.width}, 1fr)`;
+    boardEl.style.gridTemplateColumns = `repeat(${config.width}, var(--cell-size))`;
     cellElements = [];
 
     for (let index = 0; index < totalCells; index += 1) {
       const cell = document.createElement('button');
       cell.type = 'button';
       cell.className = 'cell hidden';
-      cell.textContent = hiddenEmoji;
+      cell.textContent = HIDDEN_SYMBOL;
       cell.dataset.index = String(index);
       cell.setAttribute('aria-label', 'Закрытая клетка');
       cell.addEventListener('click', onLeftClick);
@@ -236,10 +240,13 @@
 
       const cellEl = cellElements[current];
       const count = adjacentCounts[current];
-      cellEl.classList.remove('hidden', 'flagged');
+      cellEl.classList.remove('hidden', 'flagged', 'mine');
+      removeNumberClass(cellEl);
       cellEl.classList.add('revealed');
-      cellEl.textContent = numberEmoji[count];
+      cellEl.textContent = count === 0 ? '' : String(count);
       cellEl.setAttribute('aria-label', count === 0 ? 'Пустая клетка' : `Число ${count}`);
+      cellEl.classList.add(`number-${count}`);
+      cellEl.dataset.number = String(count);
 
       if (count === 0) {
         const neighbors = getNeighborIndexes(current);
@@ -264,13 +271,15 @@
       cellStates[index] = 'hidden';
       flagsPlaced -= 1;
       cellEl.classList.remove('flagged');
-      cellEl.textContent = hiddenEmoji;
+      cellEl.classList.add('hidden');
+      cellEl.textContent = HIDDEN_SYMBOL;
       cellEl.setAttribute('aria-label', 'Закрытая клетка');
     } else {
       cellStates[index] = 'flagged';
       flagsPlaced += 1;
+      cellEl.classList.remove('hidden');
       cellEl.classList.add('flagged');
-      cellEl.textContent = flagEmoji;
+      cellEl.textContent = FLAG_SYMBOL;
       cellEl.setAttribute('aria-label', 'Клетка помечена флажком');
     }
     updateMinesCounter();
@@ -279,17 +288,21 @@
   function triggerLoss(explodedIndex) {
     gameState = 'lost';
     stopTimer();
-    showMessage('💥 Вы подорвались! Попробуйте ещё раз.', 'lose');
+    showMessage('Вы подорвались! Попробуйте ещё раз.', 'lose');
 
-    cellElements[explodedIndex].textContent = explosionEmoji;
-    cellElements[explodedIndex].classList.add('mine');
+    const explodedCell = cellElements[explodedIndex];
+    explodedCell.classList.remove('hidden');
+    explodedCell.classList.add('mine');
+    explodedCell.textContent = EXPLOSION_SYMBOL;
+    explodedCell.setAttribute('aria-label', 'Взорванная мина');
 
     for (let i = 0; i < totalCells; i += 1) {
       if (mineLayout[i] && i !== explodedIndex) {
         const cell = cellElements[i];
-        cell.classList.remove('hidden');
+        cell.classList.remove('hidden', 'flagged');
         cell.classList.add('revealed', 'mine');
-        cell.textContent = mineEmoji;
+        cell.textContent = MINE_SYMBOL;
+        cell.setAttribute('aria-label', 'Мина');
       }
     }
   }
@@ -298,7 +311,7 @@
     if (revealedCells === totalCells - config.mines) {
       gameState = 'won';
       stopTimer();
-      showMessage(`🎉 Победа! Время: ${formatTime(elapsedSeconds)}.`, 'win');
+      showMessage(`Победа! Время: ${formatTime(elapsedSeconds)}.`, 'win');
 
       for (let i = 0; i < totalCells; i += 1) {
         if (mineLayout[i] && cellStates[i] !== 'flagged') {
@@ -320,11 +333,12 @@
     mineLayout = new Array(totalCells).fill(false);
     adjacentCounts = new Array(totalCells).fill(0);
     showMessage('Новая партия началась. Удачи!');
-    minesEl.textContent = `💣 Осталось: ${config.mines}`;
+    minesEl.textContent = `Мин: ${config.mines}`;
 
     for (const cell of cellElements) {
       cell.className = 'cell hidden';
-      cell.textContent = hiddenEmoji;
+      cell.textContent = HIDDEN_SYMBOL;
+      cell.removeAttribute('data-number');
       cell.setAttribute('aria-label', 'Закрытая клетка');
     }
   }
@@ -359,7 +373,7 @@
 
   function updateMinesCounter() {
     const remaining = Math.max(0, config.mines - flagsPlaced);
-    minesEl.textContent = `💣 Осталось: ${remaining}`;
+    minesEl.textContent = `Мин: ${remaining}`;
   }
 
   function startTimer() {
@@ -381,7 +395,7 @@
   }
 
   function updateTimerDisplay() {
-    timerEl.textContent = `⏱️ ${formatTime(elapsedSeconds)}`;
+    timerEl.textContent = formatTime(elapsedSeconds);
   }
 
   function formatTime(totalSeconds) {
@@ -398,5 +412,45 @@
     if (type) {
       messagesEl.classList.add(type);
     }
+    requestAnimationFrame(() => resizeBoard());
+  }
+
+  function removeNumberClass(cellEl) {
+    if (cellEl.dataset.number) {
+      cellEl.classList.remove(`number-${cellEl.dataset.number}`);
+      cellEl.removeAttribute('data-number');
+    }
+  }
+
+  function resizeBoard() {
+    const availableWidth = Math.max(320, window.innerWidth - MARGIN);
+    const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+    const infoHeight = infoPanelEl ? infoPanelEl.offsetHeight : 0;
+    const shellStyles = appShellEl ? window.getComputedStyle(appShellEl) : null;
+    const shellPadding = shellStyles
+      ? parseFloat(shellStyles.paddingTop) + parseFloat(shellStyles.paddingBottom)
+      : 0;
+    const mainGap = shellStyles ? parseFloat(shellStyles.gap || '0') : 0;
+    const availableHeight = Math.max(
+      240,
+      window.innerHeight - headerHeight - infoHeight - shellPadding - mainGap - MARGIN
+    );
+
+    const baseWidth = config.width * BASE_CELL_SIZE + (config.width - 1) * BASE_GAP;
+    const baseHeight = config.height * BASE_CELL_SIZE + (config.height - 1) * BASE_GAP;
+
+    const scale = Math.min(
+      availableWidth / (baseWidth + BASE_PADDING * 2),
+      availableHeight / (baseHeight + BASE_PADDING * 2),
+      1
+    );
+
+    const cellSize = Math.max(MIN_CELL_SIZE, Math.floor(BASE_CELL_SIZE * scale));
+    const gap = Math.max(2, Math.round(BASE_GAP * scale));
+    const padding = Math.max(10, Math.round(BASE_PADDING * scale));
+
+    boardEl.style.setProperty('--cell-size', `${cellSize}px`);
+    boardEl.style.setProperty('--cell-gap', `${gap}px`);
+    boardEl.style.setProperty('--board-padding', `${padding}px`);
   }
 })();
