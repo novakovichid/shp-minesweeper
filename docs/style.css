@@ -352,7 +352,7 @@ body {
   .app-main {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     gap: clamp(0.75rem, 5vw, 1.5rem);
     flex: 1 1 auto;
     width: 100%;
@@ -376,45 +376,48 @@ body {
   }
 
   .info-panel {
-    width: 100%;
+    width: min(100%, 540px);
+    margin: 0 auto;
     padding: clamp(0.75rem, 4vw, 1rem);
-    gap: clamp(0.5rem, 3vw, 0.75rem);
+    gap: clamp(0.6rem, 3vw, 0.9rem);
     border-radius: 16px;
     box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: stretch;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
   }
 
   .messages {
-    flex: 1 1 100%;
+    width: 100%;
     min-height: auto;
     padding: 0.6rem 0.75rem;
     font-size: 1rem;
+    justify-self: stretch;
   }
 
   .status {
-    flex: 1 1 min(320px, 60%);
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
-    gap: 0.45rem;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.55rem;
     font-size: 0.95rem;
     justify-items: stretch;
   }
 
+  #parameters {
+    grid-column: 1 / -1;
+  }
+
   .status-item {
-    padding: 0.5rem 0.65rem;
+    padding: 0.6rem 0.75rem;
     font-size: 0.95rem;
   }
 
   .reset-button {
-    flex: 0 1 auto;
-    padding: 0.65rem 1.4rem;
+    width: 100%;
+    padding: 0.7rem 1.4rem;
     font-size: 0.95rem;
-    align-self: center;
-    white-space: nowrap;
+    justify-self: stretch;
   }
 }
 
