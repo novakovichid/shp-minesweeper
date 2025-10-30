@@ -11,9 +11,9 @@
   };
 
   const HIDDEN_SYMBOL = '';
-  const FLAG_SYMBOL = '\u2691';
-  const MINE_SYMBOL = '\u2739';
-  const EXPLOSION_SYMBOL = '\u2716';
+  const FLAG_SYMBOL = '🚩';
+  const MINE_SYMBOL = '💣';
+  const EXPLOSION_SYMBOL = '💥';
 
   const BASE_CELL_SIZE = 48;
   const BASE_GAP = 4;
