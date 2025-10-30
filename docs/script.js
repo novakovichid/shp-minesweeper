@@ -19,7 +19,9 @@
   const BASE_GAP = 4;
   const BASE_PADDING = 14;
   const MIN_CELL_SIZE = 22;
-  const MARGIN = 48;
+  const MIN_GAP = 2;
+  const MIN_PADDING = 10;
+  const MARGIN = 24;
 
   const boardEl = document.getElementById('board');
   const parametersEl = document.getElementById('parameters');
@@ -29,7 +31,9 @@
   const resetButton = document.getElementById('reset-button');
   const headerEl = document.querySelector('.app-header');
   const infoPanelEl = document.querySelector('.info-panel');
+  const mainEl = document.querySelector('.app-main');
   const appShellEl = document.querySelector('.app-shell');
+  const boardSectionEl = document.querySelector('.board-section');
 
   const { config, warnings: configWarnings } = parseConfigFromUrl();
   let totalCells = config.width * config.height;
@@ -395,7 +399,7 @@
   }
 
   function updateTimerDisplay() {
-    timerEl.textContent = formatTime(elapsedSeconds);
+    timerEl.textContent = `⏱️ ${formatTime(elapsedSeconds)}`;
   }
 
   function formatTime(totalSeconds) {
@@ -423,34 +427,141 @@
   }
 
   function resizeBoard() {
-    const availableWidth = Math.max(320, window.innerWidth - MARGIN);
+    const sizeToNumber = (value) => (value ? parseFloat(value) || 0 : 0);
     const headerHeight = headerEl ? headerEl.offsetHeight : 0;
     const infoHeight = infoPanelEl ? infoPanelEl.offsetHeight : 0;
     const shellStyles = appShellEl ? window.getComputedStyle(appShellEl) : null;
-    const shellPadding = shellStyles
-      ? parseFloat(shellStyles.paddingTop) + parseFloat(shellStyles.paddingBottom)
-      : 0;
-    const mainGap = shellStyles ? parseFloat(shellStyles.gap || '0') : 0;
-    const availableHeight = Math.max(
-      240,
-      window.innerHeight - headerHeight - infoHeight - shellPadding - mainGap - MARGIN
+    const shellPaddingTop = sizeToNumber(shellStyles && shellStyles.paddingTop);
+    const shellPaddingBottom = sizeToNumber(shellStyles && shellStyles.paddingBottom);
+    const shellGap = sizeToNumber(
+      shellStyles && (shellStyles.rowGap || shellStyles.gap)
     );
+
+    const mainStyles = mainEl ? window.getComputedStyle(mainEl) : null;
+    const columnGap = sizeToNumber(mainStyles && (mainStyles.columnGap || mainStyles.gap));
+    const rowGap = sizeToNumber(mainStyles && (mainStyles.rowGap || mainStyles.gap));
+
+    const isStackedLayout = window.matchMedia('(max-width: 900px)').matches;
+    const shellWidth = appShellEl ? appShellEl.clientWidth : window.innerWidth;
+    const boardContainerWidth = boardSectionEl ? boardSectionEl.clientWidth : 0;
+    const maxUsableWidth = Math.max(
+      160,
+      isStackedLayout
+        ? shellWidth
+        : shellWidth - (infoPanelEl ? infoPanelEl.offsetWidth : 0) - columnGap
+    );
+    const fallbackWidth = Math.max(160, maxUsableWidth - MARGIN);
+    const availableWidth = Math.max(160, boardContainerWidth, fallbackWidth);
+    const usableWidth = Math.max(160, Math.min(availableWidth, maxUsableWidth));
+
+    const verticalAdjustments =
+      headerHeight +
+      shellPaddingTop +
+      shellPaddingBottom +
+      shellGap +
+      MARGIN +
+      (isStackedLayout ? infoHeight + rowGap : 0);
+    const availableHeight = Math.max(240, window.innerHeight - verticalAdjustments);
+
+    const boardWidth = (cellSize, gap, padding) =>
+      config.width * cellSize + (config.width - 1) * gap + padding * 2;
+    const boardHeight = (cellSize, gap, padding) =>
+      config.height * cellSize + (config.height - 1) * gap + padding * 2;
 
     const baseWidth = config.width * BASE_CELL_SIZE + (config.width - 1) * BASE_GAP;
     const baseHeight = config.height * BASE_CELL_SIZE + (config.height - 1) * BASE_GAP;
+    const totalBaseWidth = baseWidth + BASE_PADDING * 2;
+    const totalBaseHeight = baseHeight + BASE_PADDING * 2;
 
-    const scale = Math.min(
-      availableWidth / (baseWidth + BASE_PADDING * 2),
-      availableHeight / (baseHeight + BASE_PADDING * 2),
-      1
-    );
+    const scaleByWidth = usableWidth / totalBaseWidth;
+    const scaleByHeight = availableHeight / totalBaseHeight;
+    const minCellScale = MIN_CELL_SIZE / BASE_CELL_SIZE;
 
-    const cellSize = Math.max(MIN_CELL_SIZE, Math.floor(BASE_CELL_SIZE * scale));
-    const gap = Math.max(2, Math.round(BASE_GAP * scale));
-    const padding = Math.max(10, Math.round(BASE_PADDING * scale));
+    const fitsWithinBounds = (scaleValue) => {
+      const cellSize = BASE_CELL_SIZE * scaleValue;
+      const gap = BASE_GAP * scaleValue;
+      const padding = BASE_PADDING * scaleValue;
+      const width = boardWidth(cellSize, gap, padding);
+      const height = boardHeight(cellSize, gap, padding);
+      return (
+        width <= usableWidth + 0.5 &&
+        (!isStackedLayout || height <= availableHeight + 0.5)
+      );
+    };
 
-    boardEl.style.setProperty('--cell-size', `${cellSize}px`);
-    boardEl.style.setProperty('--cell-gap', `${gap}px`);
-    boardEl.style.setProperty('--board-padding', `${padding}px`);
+    let targetScale = isStackedLayout
+      ? Math.min(scaleByWidth, scaleByHeight)
+      : scaleByWidth;
+
+    if (targetScale > scaleByWidth) {
+      targetScale = scaleByWidth;
+    }
+
+    if (targetScale >= minCellScale) {
+      targetScale = Math.max(targetScale, minCellScale);
+    } else if (fitsWithinBounds(minCellScale)) {
+      targetScale = minCellScale;
+    }
+
+    let cellSize = BASE_CELL_SIZE * targetScale;
+    let gap = BASE_GAP * targetScale;
+    let padding = BASE_PADDING * targetScale;
+
+    if (cellSize < MIN_CELL_SIZE) {
+      const widthWithMinCells = boardWidth(MIN_CELL_SIZE, gap, padding);
+      const heightWithMinCells = boardHeight(MIN_CELL_SIZE, gap, padding);
+      if (
+        widthWithMinCells <= usableWidth + 0.5 &&
+        (!isStackedLayout || heightWithMinCells <= availableHeight + 0.5)
+      ) {
+        cellSize = MIN_CELL_SIZE;
+      }
+    }
+
+    const tryApplyMinimum = (currentValue, minValue, predicate) => {
+      if (currentValue >= minValue) {
+        return currentValue;
+      }
+      return predicate(minValue) ? minValue : currentValue;
+    };
+
+    gap = tryApplyMinimum(gap, MIN_GAP, (candidateGap) => {
+      const width = boardWidth(cellSize, candidateGap, padding);
+      const height = boardHeight(cellSize, candidateGap, padding);
+      return (
+        width <= usableWidth + 0.5 &&
+        (!isStackedLayout || height <= availableHeight + 0.5)
+      );
+    });
+
+    padding = tryApplyMinimum(padding, MIN_PADDING, (candidatePadding) => {
+      const width = boardWidth(cellSize, gap, candidatePadding);
+      const height = boardHeight(cellSize, gap, candidatePadding);
+      return (
+        width <= usableWidth + 0.5 &&
+        (!isStackedLayout || height <= availableHeight + 0.5)
+      );
+    });
+
+    const currentWidth = boardWidth(cellSize, gap, padding);
+    const currentHeight = boardHeight(cellSize, gap, padding);
+
+    if (
+      currentWidth > usableWidth + 0.5 ||
+      (isStackedLayout && currentHeight > availableHeight + 0.5)
+    ) {
+      const widthRatio = usableWidth / currentWidth;
+      const heightRatio = isStackedLayout ? availableHeight / currentHeight : 1;
+      const correction = Math.min(widthRatio, heightRatio, 1);
+      cellSize *= correction;
+      gap *= correction;
+      padding *= correction;
+    }
+
+    const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
+
+    boardEl.style.setProperty('--cell-size', `${roundToTwoDecimals(cellSize)}px`);
+    boardEl.style.setProperty('--cell-gap', `${roundToTwoDecimals(gap)}px`);
+    boardEl.style.setProperty('--board-padding', `${roundToTwoDecimals(padding)}px`);
   }
 })();
