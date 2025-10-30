@@ -58,7 +58,7 @@
     showMessage('Готовы к игре! Нажмите на любую клетку, чтобы начать.');
   }
   parametersEl.textContent = paramInfo.text;
-  minesEl.textContent = `Мин: ${config.mines}`;
+  updateMinesDisplay(config.mines);
 
   resetButton.addEventListener('click', () => {
     resetGame();
@@ -337,7 +337,7 @@
     mineLayout = new Array(totalCells).fill(false);
     adjacentCounts = new Array(totalCells).fill(0);
     showMessage('Новая партия началась. Удачи!');
-    minesEl.textContent = `Мин: ${config.mines}`;
+    updateMinesDisplay(config.mines);
 
     for (const cell of cellElements) {
       cell.className = 'cell hidden';
@@ -377,7 +377,11 @@
 
   function updateMinesCounter() {
     const remaining = Math.max(0, config.mines - flagsPlaced);
-    minesEl.textContent = `Мин: ${remaining}`;
+    updateMinesDisplay(remaining);
+  }
+
+  function updateMinesDisplay(value) {
+    minesEl.textContent = `💣 ${value}`;
   }
 
   function startTimer() {
@@ -430,6 +434,9 @@
     const sizeToNumber = (value) => (value ? parseFloat(value) || 0 : 0);
     const headerHeight = headerEl ? headerEl.offsetHeight : 0;
     const infoHeight = infoPanelEl ? infoPanelEl.offsetHeight : 0;
+    const bodyStyles = window.getComputedStyle(document.body);
+    const bodyPaddingTop = sizeToNumber(bodyStyles && bodyStyles.paddingTop);
+    const bodyPaddingBottom = sizeToNumber(bodyStyles && bodyStyles.paddingBottom);
     const shellStyles = appShellEl ? window.getComputedStyle(appShellEl) : null;
     const shellPaddingTop = sizeToNumber(shellStyles && shellStyles.paddingTop);
     const shellPaddingBottom = sizeToNumber(shellStyles && shellStyles.paddingBottom);
@@ -443,25 +450,34 @@
 
     const isStackedLayout = window.matchMedia('(max-width: 900px)').matches;
     const shellWidth = appShellEl ? appShellEl.clientWidth : window.innerWidth;
-    const boardContainerWidth = boardSectionEl ? boardSectionEl.clientWidth : 0;
-    const maxUsableWidth = Math.max(
-      160,
-      isStackedLayout
-        ? shellWidth
-        : shellWidth - (infoPanelEl ? infoPanelEl.offsetWidth : 0) - columnGap
-    );
-    const fallbackWidth = Math.max(160, maxUsableWidth - MARGIN);
-    const availableWidth = Math.max(160, boardContainerWidth, fallbackWidth);
-    const usableWidth = Math.max(160, Math.min(availableWidth, maxUsableWidth));
+    const infoPanelWidth = infoPanelEl ? infoPanelEl.offsetWidth : 0;
+    const boardContainerWidth = boardSectionEl
+      ? boardSectionEl.getBoundingClientRect().width
+      : 0;
+    const parentContainerWidth = boardSectionEl && boardSectionEl.parentElement
+      ? boardSectionEl.parentElement.getBoundingClientRect().width
+      : 0;
+    const layoutWidthLimit = isStackedLayout
+      ? shellWidth
+      : Math.max(0, shellWidth - infoPanelWidth - columnGap);
+    const widthCandidates = [
+      boardContainerWidth,
+      parentContainerWidth,
+      layoutWidthLimit,
+      shellWidth,
+    ].filter((value) => Number.isFinite(value) && value > 0);
+    const usableWidth = widthCandidates.length > 0 ? Math.min(...widthCandidates) : shellWidth;
 
     const verticalAdjustments =
       headerHeight +
+      bodyPaddingTop +
+      bodyPaddingBottom +
       shellPaddingTop +
       shellPaddingBottom +
       shellGap +
       MARGIN +
       (isStackedLayout ? infoHeight + rowGap : 0);
-    const availableHeight = Math.max(240, window.innerHeight - verticalAdjustments);
+    const availableHeight = Math.max(0, window.innerHeight - verticalAdjustments);
 
     const boardWidth = (cellSize, gap, padding) =>
       config.width * cellSize + (config.width - 1) * gap + padding * 2;
@@ -473,9 +489,11 @@
     const totalBaseWidth = baseWidth + BASE_PADDING * 2;
     const totalBaseHeight = baseHeight + BASE_PADDING * 2;
 
-    const scaleByWidth = usableWidth / totalBaseWidth;
-    const scaleByHeight = availableHeight / totalBaseHeight;
     const minCellScale = MIN_CELL_SIZE / BASE_CELL_SIZE;
+    const scaleByWidth = usableWidth > 0 ? usableWidth / totalBaseWidth : 0;
+    const scaleByHeight = availableHeight > 0
+      ? availableHeight / totalBaseHeight
+      : minCellScale;
 
     const fitsWithinBounds = (scaleValue) => {
       const cellSize = BASE_CELL_SIZE * scaleValue;
@@ -483,18 +501,15 @@
       const padding = BASE_PADDING * scaleValue;
       const width = boardWidth(cellSize, gap, padding);
       const height = boardHeight(cellSize, gap, padding);
-      return (
-        width <= usableWidth + 0.5 &&
-        (!isStackedLayout || height <= availableHeight + 0.5)
-      );
+      const widthFits = usableWidth <= 0 || width <= usableWidth + 0.5;
+      const heightFits = availableHeight <= 0 || height <= availableHeight + 0.5;
+      return widthFits && heightFits;
     };
 
-    let targetScale = isStackedLayout
-      ? Math.min(scaleByWidth, scaleByHeight)
-      : scaleByWidth;
+    let targetScale = Math.min(scaleByWidth, scaleByHeight);
 
-    if (targetScale > scaleByWidth) {
-      targetScale = scaleByWidth;
+    if (!Number.isFinite(targetScale) || targetScale <= 0) {
+      targetScale = scaleByWidth > 0 ? scaleByWidth : minCellScale;
     }
 
     if (targetScale >= minCellScale) {
@@ -510,10 +525,8 @@
     if (cellSize < MIN_CELL_SIZE) {
       const widthWithMinCells = boardWidth(MIN_CELL_SIZE, gap, padding);
       const heightWithMinCells = boardHeight(MIN_CELL_SIZE, gap, padding);
-      if (
-        widthWithMinCells <= usableWidth + 0.5 &&
-        (!isStackedLayout || heightWithMinCells <= availableHeight + 0.5)
-      ) {
+      const heightFits = availableHeight <= 0 || heightWithMinCells <= availableHeight + 0.5;
+      if (widthWithMinCells <= usableWidth + 0.5 && heightFits) {
         cellSize = MIN_CELL_SIZE;
       }
     }
@@ -528,19 +541,15 @@
     gap = tryApplyMinimum(gap, MIN_GAP, (candidateGap) => {
       const width = boardWidth(cellSize, candidateGap, padding);
       const height = boardHeight(cellSize, candidateGap, padding);
-      return (
-        width <= usableWidth + 0.5 &&
-        (!isStackedLayout || height <= availableHeight + 0.5)
-      );
+      const heightFits = availableHeight <= 0 || height <= availableHeight + 0.5;
+      return width <= usableWidth + 0.5 && heightFits;
     });
 
     padding = tryApplyMinimum(padding, MIN_PADDING, (candidatePadding) => {
       const width = boardWidth(cellSize, gap, candidatePadding);
       const height = boardHeight(cellSize, gap, candidatePadding);
-      return (
-        width <= usableWidth + 0.5 &&
-        (!isStackedLayout || height <= availableHeight + 0.5)
-      );
+      const heightFits = availableHeight <= 0 || height <= availableHeight + 0.5;
+      return width <= usableWidth + 0.5 && heightFits;
     });
 
     const currentWidth = boardWidth(cellSize, gap, padding);
@@ -548,10 +557,10 @@
 
     if (
       currentWidth > usableWidth + 0.5 ||
-      (isStackedLayout && currentHeight > availableHeight + 0.5)
+      (availableHeight > 0 && currentHeight > availableHeight + 0.5)
     ) {
-      const widthRatio = usableWidth / currentWidth;
-      const heightRatio = isStackedLayout ? availableHeight / currentHeight : 1;
+      const widthRatio = usableWidth > 0 ? usableWidth / currentWidth : 1;
+      const heightRatio = availableHeight > 0 ? availableHeight / currentHeight : 1;
       const correction = Math.min(widthRatio, heightRatio, 1);
       cellSize *= correction;
       gap *= correction;
